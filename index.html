@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Verbale CSE — Cantiere</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  :root{
+    --verde:#1E2D2D; --arancio:#E5530F; --ciano:#BEDCDB; --grigio:#6B7472;
+    --conforme:#1E7A34; --nc:#B3261E; --na:#6B7472; --amber:#B26A00;
+    --bg:#EAEFEF; --card:#FFFFFF; --line:#CBD6D5; --ink:#16211F;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);
+    font-size:16px;line-height:1.45;padding-bottom:96px}
+
+  /* ---- top status bar ---- */
+  .topbar{position:sticky;top:0;z-index:30;background:var(--verde);color:#fff;
+    padding:10px 16px calc(10px + env(safe-area-inset-top,0)) 16px;
+    display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--arancio)}
+  .topbar .mark{font-weight:800;letter-spacing:.06em;font-size:15px}
+  .topbar .meta{font-family:var(--mono);font-size:12px;color:var(--ciano);
+    margin-left:auto;text-align:right;line-height:1.3}
+
+  .wrap{max-width:860px;margin:0 auto;padding:16px}
+
+  /* ---- section ---- */
+  .sec{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    margin:14px 0;overflow:hidden}
+  .sec>h2{margin:0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;
+    color:#fff;background:var(--verde);padding:12px 16px;display:flex;align-items:center;gap:10px}
+  .sec>h2 .n{font-family:var(--mono);color:var(--arancio);font-weight:700}
+  .sec .body{padding:16px}
+
+  label.f{display:block;font-size:12px;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--grigio);margin:12px 0 5px;font-weight:600}
+  label.f:first-child{margin-top:0}
+  input[type=text],input[type=date],input[type=time],textarea,select{
+    width:100%;font:inherit;font-size:16px;padding:12px 14px;border:1.5px solid var(--line);
+    border-radius:10px;background:#fff;color:var(--ink)}
+  textarea{min-height:70px;resize:vertical}
+  input:focus,textarea:focus,select:focus{outline:3px solid var(--ciano);border-color:var(--verde)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .row3{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
+  .hint{font-size:13px;color:var(--grigio);margin:4px 0 0}
+
+  /* ---- phase chips ---- */
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;
+    padding:11px 16px;font-size:15px;cursor:pointer;user-select:none;display:flex;gap:8px;align-items:center}
+  .chip[aria-pressed=true]{background:var(--verde);color:#fff;border-color:var(--verde)}
+  .chip .dot{width:9px;height:9px;border-radius:50%;background:var(--line)}
+  .chip[aria-pressed=true] .dot{background:var(--arancio)}
+
+  /* ---- verifica rows ---- */
+  .vlist{display:flex;flex-direction:column;gap:10px}
+  .vrow{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}
+  .vrow .vtxt{font-size:15px;margin-bottom:10px}
+  .seg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .seg button{font:inherit;font-weight:700;font-size:15px;padding:14px 0;border-radius:10px;
+    border:1.5px solid var(--line);background:#fff;color:var(--grigio);cursor:pointer;letter-spacing:.03em}
+  .seg button[data-on=C]{background:var(--conforme);border-color:var(--conforme);color:#fff}
+  .seg button[data-on=NC]{background:var(--nc);border-color:var(--nc);color:#fff}
+  .seg button[data-on=NA]{background:var(--na);border-color:var(--na);color:#fff}
+
+  /* ---- rilievi ---- */
+  .rilievo{border:1px solid var(--line);border-left:5px solid var(--grigio);
+    border-radius:12px;padding:14px;margin-bottom:12px;background:#fff}
+  .rilievo[data-tipo=nonconforme]{border-left-color:var(--nc)}
+  .rilievo[data-tipo=conforme]{border-left-color:var(--conforme)}
+  .rilievo .rtop{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .rilievo .tag{font-family:var(--mono);font-size:12px;font-weight:700;padding:3px 8px;border-radius:6px;
+    background:var(--ciano);color:var(--verde)}
+  .thumb{width:100%;max-height:200px;object-fit:cover;border-radius:10px;margin:8px 0;display:none;background:#eef2f2}
+  .thumb.show{display:block}
+  .del{margin-left:auto;background:none;border:none;color:var(--nc);font-size:14px;cursor:pointer;font-weight:600}
+  .addphoto{display:inline-flex;align-items:center;gap:8px;background:var(--ciano);color:var(--verde);
+    border:none;border-radius:10px;padding:12px 16px;font:inherit;font-weight:600;cursor:pointer}
+  .tipo-toggle{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:2px 0 10px}
+  .tipo-toggle button{font:inherit;font-weight:600;padding:12px;border-radius:10px;border:1.5px solid var(--line);
+    background:#fff;color:var(--grigio);cursor:pointer}
+  .tipo-toggle button[aria-pressed=true][data-t=conforme]{background:var(--conforme);border-color:var(--conforme);color:#fff}
+  .tipo-toggle button[aria-pressed=true][data-t=nonconforme]{background:var(--nc);border-color:var(--nc);color:#fff}
+  .ncfields{display:none;border-top:1px dashed var(--line);margin-top:10px;padding-top:10px}
+  .ncfields.show{display:block}
+  label.f .mic{float:right;font:inherit;font-size:12px;font-weight:600;text-transform:none;letter-spacing:0;
+    background:var(--ciano);color:var(--verde);border:none;border-radius:8px;padding:5px 10px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:5px;margin-top:-3px}
+  label.f .mic.rec{background:var(--nc);color:#fff;animation:pulse 1.1s infinite}
+  label.f .mic[hidden]{display:none}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+
+  .btn-add{width:100%;background:var(--verde);color:#fff;border:none;border-radius:12px;
+    padding:15px;font:inherit;font-weight:700;cursor:pointer;margin-top:4px}
+  .btn-ghost{background:#fff;border:1.5px solid var(--verde);color:var(--verde)}
+
+  /* ---- signature ---- */
+  .sign{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:640px){.sign{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
+  .sigbox{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+  .sigbox .sh{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--grigio);
+    padding:8px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center}
+  .sigbox .sh button{margin-left:auto;background:none;border:none;color:var(--arancio);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  canvas.pad{width:100%;height:150px;display:block;touch-action:none;background:
+    repeating-linear-gradient(0deg,#fff,#fff 28px,#f0f4f4 29px)}
+
+  /* ---- bottom action bar ---- */
+  .actions{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#fff;
+    border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom,0));
+    display:flex;gap:12px;max-width:860px;margin:0 auto}
+  .actions button{flex:1;font:inherit;font-weight:700;font-size:16px;padding:15px;border-radius:12px;cursor:pointer;border:none}
+  #genPdf{background:var(--arancio);color:#fff}
+  #expReg{background:#fff;border:1.5px solid var(--verde);color:var(--verde)}
+  .banner{background:#FFF4E6;border:1px solid #F0C486;color:#7a4d00;font-size:13px;
+    padding:10px 14px;border-radius:10px;margin:0 0 14px}
+  .loadbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 8px}
+  .loadbar button{font:inherit;font-weight:600;font-size:14px;padding:10px 14px;border-radius:10px;
+    border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer}
+  .loadstatus{font-size:13px;color:var(--conforme);font-weight:600}
+  .prec{border:1px solid var(--line);border-left:5px solid var(--amber);border-radius:12px;
+    padding:12px;margin-bottom:10px;background:#fff}
+  .prec[data-chiuso=true]{border-left-color:var(--conforme);opacity:.75}
+  .prec[data-scaduta=true]{border-left-color:var(--nc)}
+  .prec .pmeta{font-family:var(--mono);font-size:12px;color:var(--grigio);margin-bottom:6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .prec .pstato{font-weight:700;padding:2px 8px;border-radius:6px;background:#FFF0DB;color:var(--amber)}
+  .prec[data-scaduta=true] .pstato{background:#FBE3E1;color:var(--nc)}
+  .prec[data-chiuso=true] .pstato{background:#E3F1E7;color:var(--conforme)}
+  .prec .close-toggle{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:15px;cursor:pointer}
+  .prec .close-toggle input{width:20px;height:20px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="mark">INSPIRENG · CSE</span>
+  <span class="meta">
+    Verbale n. <span id="tbN">—</span><br>
+    <span id="tbCant">nuovo sopralluogo</span>
+  </span>
+</div>
+
+<div class="wrap">
+  <div class="banner">Strumento di campo. I dati restano su questo dispositivo finché non generi il PDF o esporti il registro. Nessun invio automatico.</div>
+
+  <div class="loadbar">
+    <button id="loadCant" type="button">📂 Carica cantiere</button>
+    <button id="loadReg" type="button">🗂️ Carica registro</button>
+    <input type="file" id="fileCant" accept=".json,application/json" hidden>
+    <input type="file" id="fileReg" accept=".json,application/json" hidden>
+    <span id="loadStatus" class="loadstatus"></span>
+  </div>
+
+  <!-- 1. CANTIERE -->
+  <section class="sec"><h2><span class="n">1</span> Dati del cantiere</h2><div class="body">
+    <label class="f">Oggetto dei lavori</label>
+    <textarea id="oggetto" placeholder="es. Efficientamento energetico edificio scolastico…"></textarea>
+    <div class="row">
+      <div><label class="f">Committente</label><input type="text" id="committente"></div>
+      <div><label class="f">Ubicazione</label><input type="text" id="ubicazione"></div>
+    </div>
+    <div class="row">
+      <div><label class="f">CUP</label><input type="text" id="cup"></div>
+      <div><label class="f">CIG</label><input type="text" id="cig"></div>
+    </div>
+    <label class="f">Impresa affidataria</label><input type="text" id="impresa">
+    <label class="f">Imprese esecutrici / lavoratori autonomi</label><input type="text" id="esecutrici">
+    <div class="row">
+      <div><label class="f">Estremi PSC</label><input type="text" id="psc"></div>
+      <div><label class="f">Notifica preliminare</label><input type="text" id="notifica"></div>
+    </div>
+    <div class="row3">
+      <div><label class="f">Verbale n.</label><input type="text" id="nverbale" value="01"></div>
+      <div><label class="f">Data</label><input type="date" id="data"></div>
+      <div><label class="f">Ora</label><input type="time" id="ora"></div>
+    </div>
+  </div></section>
+
+  <!-- 2. PRESENTI -->
+  <section class="sec"><h2><span class="n">2</span> Soggetti presenti</h2><div class="body">
+    <div id="presentiList"></div>
+    <button class="btn-add btn-ghost" id="addPresente">+ Aggiungi presente</button>
+  </div></section>
+
+  <!-- 3. FASI -->
+  <section class="sec"><h2><span class="n">3</span> Fasi in verifica oggi</h2><div class="body">
+    <p class="hint">Seleziona le lavorazioni che stai verificando. Le voci di controllo qui sotto si adattano.</p>
+    <div class="chips" id="fasiChips"></div>
+    <label class="f" style="margin-top:16px">Lavorazioni in atto (nota libera)</label>
+    <textarea id="lavorazioni" placeholder="Descrizione sintetica di ciò che è in corso…"></textarea>
+  </div></section>
+
+  <!-- 4. VERIFICHE -->
+  <section class="sec"><h2><span class="n">4</span> Verifiche</h2><div class="body">
+    <p class="hint" id="vHint">Seleziona almeno una fase per popolare le verifiche.</p>
+    <div class="vlist" id="verificheList"></div>
+  </div></section>
+
+  <!-- 5. RILIEVI -->
+  <section class="sec"><h2><span class="n">5</span> Rilievi (foto e note)</h2><div class="body">
+    <div id="rilieviList"></div>
+    <button class="btn-add" id="addRilievo">+ Aggiungi rilievo</button>
+  </div></section>
+
+  <!-- 6. PRESCRIZIONI PRECEDENTI -->
+  <section class="sec"><h2><span class="n">6</span> Prescrizioni dei sopralluoghi precedenti</h2><div class="body">
+    <p class="hint" id="precHint">Carica un registro per vedere le prescrizioni ancora aperte. Spunta quelle risolte oggi.</p>
+    <div id="precList"></div>
+  </div></section>
+
+  <!-- 7. PROVVEDIMENTI -->
+  <section class="sec"><h2><span class="n">7</span> Provvedimenti e conclusioni</h2><div class="body">
+    <label class="f">Provvedimenti (eventuale sospensione ex art. 92 c.1 lett. f)</label>
+    <textarea id="provvedimenti"></textarea>
+    <label class="f">Note conclusive</label>
+    <textarea id="conclusioni"></textarea>
+  </div></section>
+
+  <!-- 8. FIRME -->
+  <section class="sec"><h2><span class="n">8</span> Sottoscrizioni</h2><div class="body">
+    <div class="row">
+      <div><label class="f">Nome CSE</label><input type="text" id="cseNome" value="Ing. Angelo Di Gennaro"></div>
+      <div><label class="f">Firmatario impresa</label><input type="text" id="impresaNome"></div>
+    </div>
+    <div class="sign" style="margin-top:14px">
+      <div class="sigbox">
+        <div class="sh">Il Coordinatore per la Sicurezza <button data-clear="cse">Cancella</button></div>
+        <canvas class="pad" id="sigCse"></canvas>
+      </div>
+      <div class="sigbox">
+        <div class="sh">L'Impresa affidataria <button data-clear="imp">Cancella</button></div>
+        <canvas class="pad" id="sigImp"></canvas>
+      </div>
+    </div>
+  </div></section>
+</div>
+
+<div class="actions">
+  <button id="expReg">Esporta registro</button>
+  <button id="genPdf">Genera PDF firmato</button>
+</div>
+
+<script>
+// ===================== CONFIG PRECARICATA =====================
+const ANAGRAFICA = {
+  studio:"INSPIRENG S.R.L.",
+  cse_default:"Ing. Angelo Di Gennaro",
+};
+
+// pool voci di verifica
+const V = {
+  doc:"Verifiche documentali (POS, idoneità tecnico-professionale, DURC)",
+  psc:"Attuazione delle previsioni del PSC",
+  dpi:"Utilizzo dei dispositivi di protezione individuale (DPI)",
+  segnal:"Segnaletica di sicurezza e delimitazioni",
+  recinz:"Recinzione di cantiere e accessi",
+  ordine:"Ordine, pulizia e gestione dei materiali",
+  provvis:"Apprestamenti e opere provvisionali (ponteggi, parapetti, andatoie)",
+  dpc:"Dispositivi di protezione collettiva (DPC)",
+  quota:"Protezione dei bordi e sistemi anticaduta (lavori in quota)",
+  scavi:"Armature scavi, cigli e stabilità pareti",
+  elettr:"Impianti e collegamenti elettrici / messa a terra",
+  macch:"Macchine, attrezzature e loro conformità",
+  solleva:"Apparecchi di sollevamento e imbracature",
+  demol:"Delimitazione e presidi per demolizioni/rimozioni",
+  polveri:"Contenimento polveri e gestione materiali di risulta",
+  antinc:"Presidi antincendio e gestione emergenze",
+};
+// sempre presenti
+const V_SEMPRE = ["doc","psc","dpi","segnal","recinz","ordine"];
+
+// fasi → voci pertinenti
+const FASI = [
+  {id:"allest", nome:"Allestimento cantiere", v:["recinz","segnal"]},
+  {id:"scavi",  nome:"Scavi e movimento terra", v:["scavi","macch","elettr"]},
+  {id:"strutt", nome:"Opere strutturali / c.a.", v:["provvis","solleva","macch"]},
+  {id:"quota",  nome:"Lavori in quota / coperture", v:["quota","dpc","provvis"]},
+  {id:"ponteg", nome:"Ponteggi e opere provvisionali", v:["provvis","dpc","quota"]},
+  {id:"demol",  nome:"Demolizioni e rimozioni", v:["demol","polveri","dpc"]},
+  {id:"elettr", nome:"Impianti elettrici", v:["elettr","macch"]},
+  {id:"mecc",   nome:"Impianti meccanici/idraulici", v:["macch","antinc"]},
+  {id:"finit",  nome:"Finiture", v:["ordine","polveri"]},
+  {id:"smob",   nome:"Smobilizzo cantiere", v:["recinz","ordine"]},
+];
+
+// ===================== STATE =====================
+const state = {
+  presenti:[{nome:ANAGRAFICA.cse_default, ruolo:"Coordinatore per la Sicurezza in fase di Esecuzione", ente:ANAGRAFICA.studio}],
+  fasi:new Set(),
+  esiti:{},        // key -> C/NC/NA
+  rilievi:[],      // {id,tipo,descrizione,foto,rifNorm,gravita,prescrizione,termine}
+  registro:[],     // prescrizioni caricate da registro.json (sopralluoghi precedenti)
+};
+let ridSeq=1;
+
+// init date/time
+const now=new Date();
+document.getElementById('data').value=now.toISOString().slice(0,10);
+document.getElementById('ora').value=now.toTimeString().slice(0,5);
+
+// ===================== TOPBAR sync =====================
+const $=id=>document.getElementById(id);
+function syncTop(){ $('tbN').textContent=$('nverbale').value||'—';
+  $('tbCant').textContent=$('committente').value||$('oggetto').value.slice(0,28)||'nuovo sopralluogo'; }
+['nverbale','committente','oggetto'].forEach(i=>$(i).addEventListener('input',syncTop));
+
+// ===================== PRESENTI =====================
+function renderPresenti(){
+  const box=$('presentiList'); box.innerHTML='';
+  state.presenti.forEach((p,i)=>{
+    const d=document.createElement('div'); d.style.marginBottom='10px';
+    d.innerHTML=`<div class="row3">
+      <div><label class="f">Nominativo</label><input type="text" value="${esc(p.nome)}" data-k="nome"></div>
+      <div><label class="f">Ruolo</label><input type="text" value="${esc(p.ruolo)}" data-k="ruolo"></div>
+      <button class="del" title="Rimuovi">✕</button></div>
+      <label class="f">Impresa / ente</label><input type="text" value="${esc(p.ente)}" data-k="ente">`;
+    d.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',e=>p[e.target.dataset.k]=e.target.value));
+    d.querySelector('.del').addEventListener('click',()=>{state.presenti.splice(i,1);renderPresenti();});
+    box.appendChild(d);
+  });
+}
+$('addPresente').addEventListener('click',()=>{state.presenti.push({nome:'',ruolo:'',ente:''});renderPresenti();});
+
+// ===================== FASI =====================
+function renderFasi(){
+  const box=$('fasiChips'); box.innerHTML='';
+  FASI.forEach(f=>{
+    const b=document.createElement('button'); b.className='chip'; b.type='button';
+    b.setAttribute('aria-pressed', state.fasi.has(f.id));
+    b.innerHTML=`<span class="dot"></span>${f.nome}`;
+    b.addEventListener('click',()=>{ state.fasi.has(f.id)?state.fasi.delete(f.id):state.fasi.add(f.id);
+      b.setAttribute('aria-pressed',state.fasi.has(f.id)); renderVerifiche(); });
+    box.appendChild(b);
+  });
+}
+function activeVerifiche(){
+  const keys=new Set(V_SEMPRE);
+  FASI.filter(f=>state.fasi.has(f.id)).forEach(f=>f.v.forEach(k=>keys.add(k)));
+  return [...keys];
+}
+function renderVerifiche(){
+  const box=$('verificheList'); const keys=activeVerifiche();
+  $('vHint').textContent = state.fasi.size? 'Tocca l\'esito per ogni voce. C = conforme · NC = non conforme · NA = non applicabile'
+    : 'Seleziona almeno una fase per popolare le verifiche.';
+  box.innerHTML='';
+  keys.forEach(k=>{
+    const cur=state.esiti[k]||'';
+    const row=document.createElement('div'); row.className='vrow';
+    row.innerHTML=`<div class="vtxt">${V[k]}</div>
+      <div class="seg">
+        <button type="button" data-v="C" ${cur==='C'?'data-on="C"':''}>C</button>
+        <button type="button" data-v="NC" ${cur==='NC'?'data-on="NC"':''}>NC</button>
+        <button type="button" data-v="NA" ${cur==='NA'?'data-on="NA"':''}>NA</button>
+      </div>`;
+    row.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{
+      state.esiti[k]=b.dataset.v;
+      row.querySelectorAll('.seg button').forEach(x=>x.removeAttribute('data-on'));
+      b.setAttribute('data-on',b.dataset.v);
+    }));
+    box.appendChild(row);
+  });
+}
+
+// ===================== RILIEVI =====================
+function renderRilievi(){
+  const box=$('rilieviList'); box.innerHTML='';
+  state.rilievi.forEach((r,i)=>{
+    const d=document.createElement('div'); d.className='rilievo'; d.dataset.tipo=r.tipo||'';
+    d.innerHTML=`
+      <div class="rtop"><span class="tag">R${i+1}</span>
+        <button class="del">✕ rimuovi</button></div>
+      <div class="tipo-toggle">
+        <button type="button" data-t="conforme" aria-pressed="${r.tipo==='conforme'}">Conforme</button>
+        <button type="button" data-t="nonconforme" aria-pressed="${r.tipo==='nonconforme'}">Non conforme</button>
+      </div>
+      <img class="thumb ${r.foto?'show':''}" ${r.foto?`src="${r.foto}"`:''}>
+      <button class="addphoto" type="button">📷 Foto</button>
+      <input type="file" accept="image/*" capture="environment" style="display:none">
+      <label class="f">Descrizione del rilievo <button class="mic" type="button" data-mic="descrizione">🎤 Detta</button></label>
+      <textarea data-k="descrizione">${esc(r.descrizione||'')}</textarea>
+      <div class="ncfields ${r.tipo==='nonconforme'?'show':''}">
+        <div class="row">
+          <div><label class="f">Rif. normativo / PSC</label><input type="text" data-k="rifNorm" value="${esc(r.rifNorm||'')}"></div>
+          <div><label class="f">Gravità</label>
+            <select data-k="gravita">
+              <option ${r.gravita==='Alta'?'selected':''}>Alta</option>
+              <option ${r.gravita==='Media'?'selected':''}>Media</option>
+              <option ${r.gravita==='Bassa'?'selected':''}>Bassa</option>
+            </select></div>
+        </div>
+        <label class="f">Prescrizione impartita <button class="mic" type="button" data-mic="prescrizione">🎤 Detta</button></label>
+        <textarea data-k="prescrizione">${esc(r.prescrizione||'')}</textarea>
+        <label class="f">Termine adempimento</label>
+        <input type="text" data-k="termine" placeholder="es. 17/07/2026 oppure 'immediato'" value="${esc(r.termine||'')}">
+      </div>`;
+    // tipo toggle
+    d.querySelectorAll('.tipo-toggle button').forEach(b=>b.addEventListener('click',()=>{
+      r.tipo=b.dataset.t; d.dataset.tipo=r.tipo;
+      d.querySelectorAll('.tipo-toggle button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.t===r.tipo));
+      d.querySelector('.ncfields').classList.toggle('show', r.tipo==='nonconforme');
+    }));
+    // fields
+    d.querySelectorAll('[data-k]').forEach(inp=>inp.addEventListener('input',e=>r[e.target.dataset.k]=e.target.value));
+    // dettatura vocale
+    d.querySelectorAll('.mic').forEach(b=>attachDictation(b, d.querySelector(`[data-k="${b.dataset.mic}"]`)));
+    // photo
+    const file=d.querySelector('input[type=file]'); const img=d.querySelector('.thumb');
+    d.querySelector('.addphoto').addEventListener('click',()=>file.click());
+    file.addEventListener('change',e=>{const f=e.target.files[0]; if(!f)return;
+      downscale(f,1000,dataUrl=>{r.foto=dataUrl; img.src=dataUrl; img.classList.add('show');});});
+    d.querySelector('.del').addEventListener('click',()=>{state.rilievi.splice(i,1);renderRilievi();});
+    box.appendChild(d);
+  });
+}
+$('addRilievo').addEventListener('click',()=>{state.rilievi.push({id:ridSeq++,tipo:'',descrizione:''});renderRilievi();});
+
+// downscale photo to keep PDF light
+function downscale(file,maxW,cb){
+  const r=new FileReader();
+  r.onload=()=>{const im=new Image(); im.onload=()=>{
+    const s=Math.min(1,maxW/im.width); const c=document.createElement('canvas');
+    c.width=im.width*s; c.height=im.height*s; c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+    cb(c.toDataURL('image/jpeg',0.72));
+  }; im.src=r.result;}; r.readAsDataURL(file);
+}
+
+// ===================== CARICAMENTO CANTIERE / REGISTRO =====================
+function todayISO(){return new Date().toISOString().slice(0,10);}
+function isScaduta(t,ref){const a=/^(\d{4})-(\d{2})-(\d{2})$/.test(t);return a && t<ref;}
+function status(msg){const s=$('loadStatus');s.textContent=msg;setTimeout(()=>{if(s.textContent===msg)s.textContent='';},4000);}
+
+$('loadCant').addEventListener('click',()=>$('fileCant').click());
+$('loadReg').addEventListener('click',()=>$('fileReg').click());
+
+$('fileCant').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f)return; const r=new FileReader();
+  r.onload=()=>{ try{
+    const c=JSON.parse(r.result); const d=c.dati_identificativi||{};
+    const map={oggetto:'oggetto_lavori',committente:'committente',ubicazione:'ubicazione',
+      cup:'cup',cig:'cig',impresa:'impresa_affidataria',esecutrici:'imprese_esecutrici',
+      psc:'estremi_psc',notifica:'notifica_preliminare'};
+    Object.entries(map).forEach(([id,k])=>{ if(d[k]!=null) $(id).value=d[k]; });
+    if(Array.isArray(c.presenti_ricorrenti)&&c.presenti_ricorrenti.length){
+      state.presenti=c.presenti_ricorrenti.map(p=>({nome:p.nome||'',ruolo:p.ruolo||'',ente:p.ente||''}));
+      renderPresenti();
+    }
+    if(Array.isArray(c.destinatari)) state.destinatari=c.destinatari;
+    syncTop(); status('✓ Cantiere caricato');
+  }catch(err){ status('✗ File cantiere non valido'); } };
+  r.readAsText(f);
+});
+
+$('fileReg').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f)return; const r=new FileReader();
+  r.onload=()=>{ try{
+    const reg=JSON.parse(r.result);
+    state.registro=(reg.prescrizioni||[]).map(p=>({...p, _chiudi:false}));
+    renderPrecedenti(); status(`✓ Registro caricato (${state.registro.length} voci)`);
+  }catch(err){ status('✗ File registro non valido'); } };
+  r.readAsText(f);
+});
+
+function renderPrecedenti(){
+  const box=$('precList'); const ref=$('data').value||todayISO();
+  const aperte=state.registro.filter(p=>p.stato==='Aperta');
+  $('precHint').textContent = state.registro.length
+    ? (aperte.length? 'Spunta le prescrizioni risolte oggi: verranno chiuse nel registro esportato.'
+        : 'Nessuna prescrizione aperta a carico. Tutte risolte.')
+    : 'Carica un registro per vedere le prescrizioni ancora aperte. Spunta quelle risolte oggi.';
+  box.innerHTML='';
+  aperte.forEach(p=>{
+    const scaduta=isScaduta(p.termine,ref) && !p._chiudi;
+    const d=document.createElement('div'); d.className='prec';
+    d.dataset.chiuso=p._chiudi?'true':'false'; d.dataset.scaduta=scaduta?'true':'false';
+    const termine=/^\d{4}-\d{2}-\d{2}$/.test(p.termine)?itDate(p.termine):(p.termine||'—');
+    const statoTxt=p._chiudi?'Chiusa oggi':(scaduta?'Aperta (scaduta)':'Aperta');
+    d.innerHTML=`<div class="pmeta">
+        <span>Verbale ${p.verbale_origine||'—'} · ${p.rif||''}</span>
+        <span>termine: ${termine}</span>
+        <span class="pstato">${statoTxt}</span></div>
+      <div>${esc(p.prescrizione||'')}</div>
+      <label class="close-toggle"><input type="checkbox" ${p._chiudi?'checked':''}> Risolta / chiudi oggi</label>`;
+    d.querySelector('input').addEventListener('change',ev=>{p._chiudi=ev.target.checked;renderPrecedenti();});
+    box.appendChild(d);
+  });
+}
+$('data').addEventListener('change',renderPrecedenti);
+
+// ===================== DETTATURA VOCALE (Web Speech API nativa) =====================
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let activeRec = null;   // una sola dettatura attiva per volta
+function attachDictation(button, textarea){
+  if(!SR){ button.hidden = true; return; }   // browser senza supporto: si digita a mano
+  let rec=null, listening=false, base='';
+  function setUI(on){ listening=on; button.classList.toggle('rec',on);
+    button.textContent = on ? '⏹ Ferma' : '🎤 Detta'; }
+  button.addEventListener('click',()=>{
+    if(listening){ rec && rec.stop(); return; }
+    if(activeRec){ activeRec.stop(); }        // chiudo un'altra dettatura eventualmente aperta
+    rec = new SR(); rec.lang='it-IT'; rec.interimResults=true; rec.continuous=true;
+    base = textarea.value ? textarea.value.trim() : '';
+    rec.onresult = e=>{
+      let fin='', interim='';
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        const t=e.results[i][0].transcript;
+        if(e.results[i].isFinal) fin+=t; else interim+=t;
+      }
+      if(fin){ base = (base? base+' ':'') + fin.trim().replace(/\s+([.,;:!?])/g,'$1'); }
+      textarea.value = base + (interim? (base?' ':'')+interim : '');
+      textarea.dispatchEvent(new Event('input'));
+    };
+    rec.onerror = ev=>{ status('microfono: '+(ev.error==='not-allowed'?'permesso negato':ev.error)); };
+    rec.onend = ()=>{ textarea.value=base; textarea.dispatchEvent(new Event('input'));
+      setUI(false); activeRec=null; rec=null; };
+    try{ rec.start(); activeRec=rec; setUI(true); status('🎙️ In ascolto…'); }
+    catch(err){ status('microfono non avviabile'); }
+  });
+}
+
+// ===================== SIGNATURE PADS =====================
+function setupPad(canvas){
+  const dpr=window.devicePixelRatio||1;
+  function resize(){const r=canvas.getBoundingClientRect();
+    canvas.width=r.width*dpr; canvas.height=r.height*dpr;
+    const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+    ctx.lineWidth=2.2; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#16211F';}
+  resize(); window.addEventListener('resize',resize);
+  let drawing=false, empty=true;
+  const pos=e=>{const r=canvas.getBoundingClientRect();
+    const t=e.touches?e.touches[0]:e; return [t.clientX-r.left,t.clientY-r.top];};
+  const ctx=()=>canvas.getContext('2d');
+  function start(e){drawing=true;empty=false;const[x,y]=pos(e);ctx().beginPath();ctx().moveTo(x,y);e.preventDefault();}
+  function move(e){if(!drawing)return;const[x,y]=pos(e);ctx().lineTo(x,y);ctx().stroke();e.preventDefault();}
+  function end(){drawing=false;}
+  canvas.addEventListener('pointerdown',start); canvas.addEventListener('pointermove',move);
+  window.addEventListener('pointerup',end);
+  canvas.isEmpty=()=>empty;
+  canvas.clearPad=()=>{const r=canvas.getBoundingClientRect();ctx().clearRect(0,0,r.width,r.height);empty=true;};
+  return canvas;
+}
+const padCse=setupPad($('sigCse')), padImp=setupPad($('sigImp'));
+document.querySelectorAll('[data-clear]').forEach(b=>b.addEventListener('click',()=>{
+  (b.dataset.clear==='cse'?padCse:padImp).clearPad();}));
+
+// ===================== HELPERS =====================
+function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function collect(){
+  return {
+    meta:{n_verbale:$('nverbale').value, data:$('data').value, ora:$('ora').value},
+    dati_identificativi:{oggetto_lavori:$('oggetto').value,committente:$('committente').value,
+      cup:$('cup').value,cig:$('cig').value,ubicazione:$('ubicazione').value,
+      impresa_affidataria:$('impresa').value,imprese_esecutrici:$('esecutrici').value,
+      estremi_psc:$('psc').value,notifica_preliminare:$('notifica').value},
+    presenti:state.presenti,
+    fase:{lavorazioni_in_atto:$('lavorazioni').value,
+      fase_psc:FASI.filter(f=>state.fasi.has(f.id)).map(f=>f.nome).join('; ')},
+    verifiche:activeVerifiche().map(k=>({voce:V[k],esito:state.esiti[k]||'',note:''})),
+    rilievi:state.rilievi,
+    prescrizioni_precedenti:state.registro.filter(p=>p.stato==='Aperta'),
+    provvedimenti:$('provvedimenti').value, note_conclusive:$('conclusioni').value,
+    cse_nome:$('cseNome').value, impresa_firmatario:$('impresaNome').value,
+  };
+}
+function itDate(iso){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);return m?`${m[3]}/${m[2]}/${m[1]}`:iso;}
+
+// ===================== EXPORT REGISTRO =====================
+$('expReg').addEventListener('click',()=>{
+  const D=collect();
+  // 1) parto dal registro caricato, applicando le chiusure spuntate oggi
+  const esistenti=state.registro.map(p=>{
+    const {_chiudi,...clean}=p;
+    if(_chiudi && clean.stato==='Aperta'){clean.stato='Chiusa';clean.data_chiusura=D.meta.data;}
+    return clean;
+  });
+  // 2) aggiungo le nuove prescrizioni dai rilievi NC odierni
+  const nuove=state.rilievi.filter(r=>r.tipo==='nonconforme'&&r.prescrizione)
+    .map((r,i)=>({id:`V${D.meta.n_verbale}-P${i+1}`,verbale_origine:D.meta.n_verbale,
+      rif:`P${i+1}`,prescrizione:r.prescrizione,termine:r.termine||'',stato:'Aperta'}));
+  const reg={_commento:"Registro prescrizioni esportato dall'app di campo. Riportalo in studio e ricaricalo al prossimo sopralluogo.",
+    aggiornato:new Date().toISOString(), prescrizioni:[...esistenti,...nuove]};
+  download(JSON.stringify(reg,null,2),`registro_${D.meta.n_verbale}_${D.meta.data}.json`,'application/json');
+  status('✓ Registro esportato');
+});
+function download(content,name,type){
+  const b=new Blob([content],{type}); const u=URL.createObjectURL(b);
+  const a=document.createElement('a'); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u);
+}
+
+// ===================== GENERA PDF =====================
+$('genPdf').addEventListener('click',generaPDF);
+function generaPDF(){
+  const D=collect();
+  const { jsPDF }=window.jspdf; const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=210, M=14; let y=0;
+  const VERDE=[30,45,45], ARANCIO=[229,83,15], GRIGIO=[107,116,114], CIANO=[190,220,219];
+  const CONF=[30,122,52], NC=[179,38,30];
+
+  function header(){ doc.setFillColor(...VERDE); doc.rect(0,0,W,4,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...VERDE);
+    doc.text('INSPIRENG',M,12);
+    doc.setFont('helvetica','normal'); doc.setTextColor(...GRIGIO);
+    doc.text('Coordinamento per la sicurezza in fase di esecuzione',W-M,12,{align:'right'});
+    doc.setDrawColor(...VERDE); doc.setLineWidth(.3); doc.line(M,15,W-M,15); }
+  function title(){ y=26; doc.setFont('helvetica','bold'); doc.setFontSize(20); doc.setTextColor(...VERDE);
+    doc.text('VERBALE DI SOPRALLUOGO',W/2,y,{align:'center'}); y+=7;
+    doc.setFontSize(11); doc.setTextColor(...ARANCIO);
+    doc.text('Coordinatore per la Sicurezza in fase di Esecuzione (CSE)',W/2,y,{align:'center'}); y+=5;
+    doc.setFont('helvetica','italic'); doc.setFontSize(8); doc.setTextColor(...GRIGIO);
+    doc.text('ai sensi del D.Lgs. 81/2008, Titolo IV — art. 92',W/2,y,{align:'center'}); y+=6; }
+  let _sec=0;
+  function secH(t){ _sec++; if(y>262){doc.addPage();header();y=24;}
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...ARANCIO);
+    doc.text(`${_sec}.`,M,y); doc.setTextColor(...VERDE); doc.text(t,M+6,y);
+    doc.setDrawColor(...ARANCIO); doc.setLineWidth(.5); doc.line(M,y+1.5,W-M,y+1.5); y+=6; }
+
+  header(); title();
+
+  // 1 dati
+  secH('Dati identificativi');
+  doc.autoTable({startY:y,margin:{left:M,right:M},theme:'grid',
+    styles:{font:'helvetica',fontSize:8.5,cellPadding:2,lineColor:[184,196,195]},
+    columnStyles:{0:{cellWidth:52,fillColor:CIANO,textColor:VERDE,fontStyle:'bold'}},
+    body:[
+      ['Oggetto dei lavori',D.dati_identificativi.oggetto_lavori],
+      ['Committente',D.dati_identificativi.committente],
+      ['CUP / CIG',`${D.dati_identificativi.cup} / ${D.dati_identificativi.cig}`],
+      ['Ubicazione',D.dati_identificativi.ubicazione],
+      ['Impresa affidataria',D.dati_identificativi.impresa_affidataria],
+      ['Imprese esecutrici',D.dati_identificativi.imprese_esecutrici],
+      ['Estremi PSC',D.dati_identificativi.estremi_psc],
+      ['Notifica preliminare',D.dati_identificativi.notifica_preliminare],
+      ['Verbale n.',D.meta.n_verbale],
+      ['Data e ora',`${itDate(D.meta.data)} — ${D.meta.ora}`],
+    ]}); y=doc.lastAutoTable.finalY+7;
+
+  // 2 presenti
+  secH('Soggetti presenti');
+  doc.autoTable({startY:y,margin:{left:M,right:M},theme:'grid',
+    styles:{font:'helvetica',fontSize:8.5,cellPadding:2,lineColor:[184,196,195]},
+    headStyles:{fillColor:VERDE,textColor:[255,255,255],fontSize:8.5},
+    head:[['Nominativo','Ruolo','Impresa / ente']],
+    body:D.presenti.map(p=>[p.nome,p.ruolo,p.ente])}); y=doc.lastAutoTable.finalY+7;
+
+  // 3 fase
+  secH('Fase lavorativa in corso');
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(20,20,20);
+  y=wrap(doc,`Lavorazioni: ${D.fase.lavorazioni_in_atto||'—'}`,M,y,W-2*M,4.5);
+  y=wrap(doc,`Fasi PSC: ${D.fase.fase_psc||'—'}`,M,y+1,W-2*M,4.5); y+=5;
+
+  // 4 verifiche
+  secH('Verifiche effettuate');
+  doc.autoTable({startY:y,margin:{left:M,right:M},theme:'grid',
+    styles:{font:'helvetica',fontSize:8.5,cellPadding:2,lineColor:[184,196,195]},
+    headStyles:{fillColor:VERDE,textColor:[255,255,255]},
+    columnStyles:{1:{cellWidth:16,halign:'center',fontStyle:'bold'}},
+    head:[['Voce di verifica','Esito']],
+    body:D.verifiche.map(v=>[v.voce,v.esito||'—']),
+    didParseCell:function(d){ if(d.column.index===1&&d.section==='body'){
+      const e=d.cell.raw; if(e==='C')d.cell.styles.textColor=CONF;
+      else if(e==='NC')d.cell.styles.textColor=NC; else d.cell.styles.textColor=GRIGIO; }}
+  }); y=doc.lastAutoTable.finalY+7;
+
+  // 5 rilievi con foto
+  const rils=D.rilievi.filter(r=>r.tipo);
+  if(rils.length){ secH('Documentazione e rilievi');
+    rils.forEach((r,i)=>{
+      const hImg=r.foto?42:0; const need=hImg+22;
+      if(y+need>272){doc.addPage();header();y=24;}
+      doc.setDrawColor(...(r.tipo==='nonconforme'?NC:CONF)); doc.setLineWidth(1.2);
+      doc.line(M,y-3,M,y-3+need-4);
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...ARANCIO);
+      doc.text(`R${i+1}`,M+3,y);
+      doc.setTextColor(...(r.tipo==='nonconforme'?NC:CONF));
+      doc.text(r.tipo==='nonconforme'?'NON CONFORME':'CONFORME',M+12,y);
+      let yy=y+5;
+      if(r.foto){try{doc.addImage(r.foto,'JPEG',M+3,yy,56,40);}catch(e){} }
+      const tx=r.foto?M+63:M+3; const tw=r.foto?(W-M)-(M+63):(W-2*M-3);
+      doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(20,20,20);
+      let ty=wrap(doc,r.descrizione||'—',tx,yy+3,tw,4);
+      if(r.tipo==='nonconforme'){
+        doc.setFontSize(8);doc.setTextColor(...GRIGIO);
+        ty=wrap(doc,`Rif.: ${r.rifNorm||'—'}  ·  Gravità: ${r.gravita||'—'}`,tx,ty+1,tw,4);
+        doc.setTextColor(...NC);
+        ty=wrap(doc,`Prescrizione: ${r.prescrizione||'—'} (termine: ${r.termine||'—'})`,tx,ty+0.5,tw,4);
+      }
+      y=Math.max(yy+ (r.foto?44:0), ty)+6;
+    });
+  }
+
+  // stato prescrizioni precedenti
+  const prec=D.prescrizioni_precedenti||[];
+  if(prec.length){
+    secH('Stato prescrizioni dei sopralluoghi precedenti');
+    const ref=D.meta.data;
+    doc.autoTable({startY:y,margin:{left:M,right:M},theme:'grid',
+      styles:{font:'helvetica',fontSize:8,cellPadding:2,lineColor:[184,196,195]},
+      headStyles:{fillColor:GRIGIO,textColor:[255,255,255]},
+      columnStyles:{0:{cellWidth:20,halign:'center'},1:{cellWidth:12,halign:'center'},
+        3:{cellWidth:24,halign:'center'},4:{cellWidth:28,halign:'center',fontStyle:'bold'}},
+      head:[['Verbale','Rif.','Prescrizione','Termine','Stato']],
+      body:prec.map(p=>{
+        const scad=isScaduta(p.termine,ref)&&!p._chiudi;
+        const st=p._chiudi?'Chiusa oggi':(scad?'Aperta (scaduta)':'Aperta');
+        const term=/^\d{4}-\d{2}-\d{2}$/.test(p.termine)?itDate(p.termine):(p.termine||'—');
+        return [p.verbale_origine||'—',p.rif||'',p.prescrizione||'',term,st];
+      }),
+      didParseCell:function(dt){ if(dt.column.index===4&&dt.section==='body'){
+        const v=dt.cell.raw;
+        if(v==='Chiusa oggi')dt.cell.styles.textColor=CONF;
+        else if(v.indexOf('scaduta')>=0)dt.cell.styles.textColor=NC;
+        else dt.cell.styles.textColor=[178,106,0]; }}
+    }); y=doc.lastAutoTable.finalY+7;
+  }
+
+  // provvedimenti
+  secH('Provvedimenti e conclusioni');
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(20,20,20);
+  y=wrap(doc,`Provvedimenti: ${D.provvedimenti||'Nessuno.'}`,M,y,W-2*M,4.5);
+  y=wrap(doc,`Conclusioni: ${D.note_conclusive||'—'}`,M,y+1,W-2*M,4.5); y+=6;
+
+  // 7 firme
+  if(y>235){doc.addPage();header();y=24;}
+  secH('Sottoscrizioni');
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(20,20,20);
+  doc.text('Il presente verbale, redatto in contraddittorio, è sottoscritto dalle parti per presa visione e accettazione delle prescrizioni.',M,y,{maxWidth:W-2*M}); y+=8;
+  const colW=(W-2*M-10)/2;
+  drawSign(doc,'Il Coordinatore per la Sicurezza',padCse,D.cse_nome,M,y,colW);
+  drawSign(doc,"L'Impresa affidataria",padImp,D.impresa_firmatario,M+colW+10,y,colW);
+
+  // footer page numbers
+  const pc=doc.internal.getNumberOfPages();
+  for(let p=1;p<=pc;p++){doc.setPage(p);
+    doc.setDrawColor(184,196,195);doc.setLineWidth(.2);doc.line(M,287,W-M,287);
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...GRIGIO);
+    doc.text(`INSPIRENG S.R.L. — Verbale n. ${D.meta.n_verbale} del ${itDate(D.meta.data)}`,M,291);
+    doc.text(`Pag. ${p} di ${pc}`,W-M,291,{align:'right'});}
+
+  doc.save(`Verbale_CSE_n${D.meta.n_verbale}_${D.meta.data}.pdf`);
+}
+function wrap(doc,txt,x,y,w,lh){const lines=doc.splitTextToSize(txt,w);
+  lines.forEach(l=>{if(y>285){doc.addPage();y=24;}doc.text(l,x,y);y+=lh;});return y;}
+function drawSign(doc,titolo,pad,nome,x,y,w){
+  doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(30,45,45);
+  doc.text(titolo,x,y);
+  if(pad && !pad.isEmpty()){try{doc.addImage(pad.toDataURL('image/png'),'PNG',x,y+3,Math.min(w,55),20);}catch(e){}}
+  doc.setDrawColor(0);doc.setLineWidth(.3);doc.line(x,y+27,x+w,y+27);
+  doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(107,116,114);
+  doc.text(nome||'',x,y+31);
+}
+
+// ===================== INIT =====================
+renderPresenti(); renderFasi(); renderVerifiche(); renderRilievi(); syncTop();
+</script>
+</body>
+</html>
