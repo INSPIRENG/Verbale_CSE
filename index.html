@@ -76,7 +76,7 @@
   .rilievo .rtop{display:flex;align-items:center;gap:10px;margin-bottom:10px}
   .rilievo .tag{font-family:var(--mono);font-size:12px;font-weight:700;padding:3px 8px;border-radius:6px;
     background:var(--ciano);color:var(--verde)}
-  .thumb{width:100%;max-height:200px;object-fit:cover;border-radius:10px;margin:8px 0;display:none;background:#eef2f2}
+  .thumb{width:100%;max-height:280px;object-fit:contain;border-radius:10px;margin:8px 0;display:none;background:#dfe7e6}
   .thumb.show{display:block}
   .del{margin-left:auto;background:none;border:none;color:var(--nc);font-size:14px;cursor:pointer;font-weight:600}
   .addphoto{display:inline-flex;align-items:center;gap:8px;background:var(--ciano);color:var(--verde);
@@ -676,7 +676,11 @@ function generaPDF(){
       doc.setTextColor(...(r.tipo==='nonconforme'?NC:CONF));
       doc.text(r.tipo==='nonconforme'?'NON CONFORME':'CONFORME',M+12,y);
       let yy=y+5;
-      if(r.foto){try{doc.addImage(r.foto,'JPEG',M+3,yy,56,40);}catch(e){} }
+      if(r.foto){try{
+        const p=doc.getImageProperties(r.foto);
+        const maxW=56,maxH=40,rt=Math.min(maxW/p.width,maxH/p.height);
+        doc.addImage(r.foto,'JPEG',M+3,yy,p.width*rt,p.height*rt);
+      }catch(e){} }
       const tx=r.foto?M+63:M+3; const tw=r.foto?(W-M)-(M+63):(W-2*M-3);
       doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(20,20,20);
       let ty=wrap(doc,r.descrizione||'—',tx,yy+3,tw,4);
