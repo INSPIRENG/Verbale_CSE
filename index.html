@@ -76,7 +76,12 @@
   .rilievo .rtop{display:flex;align-items:center;gap:10px;margin-bottom:10px}
   .rilievo .tag{font-family:var(--mono);font-size:12px;font-weight:700;padding:3px 8px;border-radius:6px;
     background:var(--ciano);color:var(--verde)}
-  .thumb{width:100%;max-height:280px;object-fit:contain;border-radius:10px;margin:8px 0;display:none;background:#dfe7e6}
+  .thumbs{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+  .thumbs .th{position:relative;width:calc(33.33% - 6px)}
+  .thumbs .th img{width:100%;height:110px;object-fit:contain;border-radius:8px;background:#dfe7e6;display:block}
+  .thumbs .thdel{position:absolute;top:5px;right:5px;background:rgba(20,33,31,.72);color:#fff;border:none;
+    border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center}
+  @media(max-width:640px){.thumbs .th{width:calc(50% - 4px)}}
   .thumb.show{display:block}
   .del{margin-left:auto;background:none;border:none;color:var(--nc);font-size:14px;cursor:pointer;font-weight:600}
   .addphoto{display:inline-flex;align-items:center;gap:8px;background:var(--ciano);color:var(--verde);
@@ -376,9 +381,9 @@ function renderRilievi(){
         <button type="button" data-t="conforme" aria-pressed="${r.tipo==='conforme'}">Conforme</button>
         <button type="button" data-t="nonconforme" aria-pressed="${r.tipo==='nonconforme'}">Non conforme</button>
       </div>
-      <img class="thumb ${r.foto?'show':''}" ${r.foto?`src="${r.foto}"`:''}>
-      <button class="addphoto" type="button">📷 Foto</button>
-      <input type="file" accept="image/*" capture="environment" style="display:none">
+      <div class="thumbs">${(r.foto||[]).map((src,fi)=>`<div class="th"><img src="${src}"><button class="thdel" data-fi="${fi}" type="button" title="Rimuovi">✕</button></div>`).join('')}</div>
+      <button class="addphoto" type="button">📷 Aggiungi foto</button>
+      <input type="file" accept="image/*" capture="environment" multiple style="display:none">
       <label class="f">Descrizione del rilievo <button class="mic" type="button" data-mic="descrizione">🎤 Detta</button></label>
       <textarea data-k="descrizione">${esc(r.descrizione||'')}</textarea>
       <div class="ncfields ${r.tipo==='nonconforme'?'show':''}">
@@ -407,15 +412,21 @@ function renderRilievi(){
     // dettatura vocale
     d.querySelectorAll('.mic').forEach(b=>attachDictation(b, d.querySelector(`[data-k="${b.dataset.mic}"]`)));
     // photo
-    const file=d.querySelector('input[type=file]'); const img=d.querySelector('.thumb');
+    // photo (multiple, in coda)
+    const file=d.querySelector('input[type=file]');
     d.querySelector('.addphoto').addEventListener('click',()=>file.click());
-    file.addEventListener('change',e=>{const f=e.target.files[0]; if(!f)return;
-      downscale(f,1000,dataUrl=>{r.foto=dataUrl; img.src=dataUrl; img.classList.add('show');});});
+    file.addEventListener('change',e=>{
+      const files=[...e.target.files]; if(!files.length)return;
+      if(!Array.isArray(r.foto)) r.foto=r.foto?[r.foto]:[];
+      let pending=files.length;
+      files.forEach(f=>downscale(f,1000,url=>{ r.foto.push(url); if(--pending===0) renderRilievi(); }));
+    });
+    d.querySelectorAll('.thdel').forEach(b=>b.addEventListener('click',()=>{ r.foto.splice(+b.dataset.fi,1); renderRilievi(); }));
     d.querySelector('.del').addEventListener('click',()=>{state.rilievi.splice(i,1);renderRilievi();});
     box.appendChild(d);
   });
 }
-$('addRilievo').addEventListener('click',()=>{state.rilievi.push({id:ridSeq++,tipo:'',descrizione:''});renderRilievi();});
+$('addRilievo').addEventListener('click',()=>{state.rilievi.push({id:ridSeq++,tipo:'',descrizione:'',foto:[]});renderRilievi();});
 
 // downscale photo to keep PDF light
 function downscale(file,maxW,cb){
@@ -663,34 +674,46 @@ function generaPDF(){
       else if(e==='NC')d.cell.styles.textColor=NC; else d.cell.styles.textColor=GRIGIO; }}
   }); y=doc.lastAutoTable.finalY+7;
 
-  // 5 rilievi con foto
+  // 5 rilievi con foto (galleria)
   const rils=D.rilievi.filter(r=>r.tipo);
   if(rils.length){ secH('Documentazione e rilievi');
     rils.forEach((r,i)=>{
-      const hImg=r.foto?42:0; const need=hImg+22;
-      if(y+need>272){doc.addPage();header();y=24;}
-      doc.setDrawColor(...(r.tipo==='nonconforme'?NC:CONF)); doc.setLineWidth(1.2);
-      doc.line(M,y-3,M,y-3+need-4);
+      const photos=Array.isArray(r.foto)?r.foto:(r.foto?[r.foto]:[]);
+      if(y+16>272){doc.addPage();header();y=24;}
+      const yStart=y;
+      // intestazione rilievo
       doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...ARANCIO);
-      doc.text(`R${i+1}`,M+3,y);
+      doc.text(`R${i+1}`,M+4,y);
       doc.setTextColor(...(r.tipo==='nonconforme'?NC:CONF));
-      doc.text(r.tipo==='nonconforme'?'NON CONFORME':'CONFORME',M+12,y);
-      let yy=y+5;
-      if(r.foto){try{
-        const p=doc.getImageProperties(r.foto);
-        const maxW=56,maxH=40,rt=Math.min(maxW/p.width,maxH/p.height);
-        doc.addImage(r.foto,'JPEG',M+3,yy,p.width*rt,p.height*rt);
-      }catch(e){} }
-      const tx=r.foto?M+63:M+3; const tw=r.foto?(W-M)-(M+63):(W-2*M-3);
+      doc.text(r.tipo==='nonconforme'?'NON CONFORME':'CONFORME',M+13,y);
+      y+=5;
+      // testo a piena larghezza
+      const tx=M+4, tw=W-2*M-4;
       doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(20,20,20);
-      let ty=wrap(doc,r.descrizione||'—',tx,yy+3,tw,4);
+      y=wrap(doc,r.descrizione||'—',tx,y,tw,4);
       if(r.tipo==='nonconforme'){
         doc.setFontSize(8);doc.setTextColor(...GRIGIO);
-        ty=wrap(doc,`Rif.: ${r.rifNorm||'—'}  ·  Gravità: ${r.gravita||'—'}`,tx,ty+1,tw,4);
+        y=wrap(doc,`Rif.: ${r.rifNorm||'—'}  ·  Gravità: ${r.gravita||'—'}`,tx,y+0.5,tw,4);
         doc.setTextColor(...NC);
-        ty=wrap(doc,`Prescrizione: ${r.prescrizione||'—'} (termine: ${r.termine||'—'})`,tx,ty+0.5,tw,4);
+        y=wrap(doc,`Prescrizione: ${r.prescrizione||'—'} (termine: ${r.termine||'—'})`,tx,y+0.5,tw,4);
       }
-      y=Math.max(yy+ (r.foto?44:0), ty)+6;
+      // galleria foto: righe che vanno a capo
+      if(photos.length){
+        y+=2; const rowH=38, gap=4; let x=tx, rowMax=0;
+        photos.forEach(src=>{
+          let w=50,h=rowH;
+          try{const p=doc.getImageProperties(src);const rt=Math.min(50/p.width,rowH/p.height);w=p.width*rt;h=p.height*rt;}catch(e){}
+          if(x+w>W-M){ x=tx; y+=rowMax+gap; rowMax=0; }        // a capo
+          if(y+h>284){ doc.addPage();header();y=24;x=tx;rowMax=0; } // nuova pagina
+          try{doc.addImage(src,'JPEG',x,y,w,h);}catch(e){}
+          x+=w+gap; rowMax=Math.max(rowMax,h);
+        });
+        y+=rowMax;
+      }
+      // marcatore colorato accanto all'intestazione (sicuro tra le pagine)
+      doc.setFillColor(...(r.tipo==='nonconforme'?NC:CONF));
+      doc.rect(M,yStart-3.5,2,5,'F');
+      y+=6;
     });
   }
 
